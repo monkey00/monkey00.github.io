@@ -46,7 +46,20 @@ a { color: inherit; }
 }
 @keyframes breathe { to { transform: translate3d(3%, -3%, 0) scale(1.08); } }
 #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; pointer-events: none; }
-.targets { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+/* the hidden game */
+.game { position: absolute; inset: 0; z-index: 4; }
+.game canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.game-say {
+  position: absolute; left: 0; right: 0; top: 50%; margin: 0; transform: translateY(-50%); text-align: center; pointer-events: none;
+  font-size: clamp(18px, 1.7vw, 24px); letter-spacing: .01em; color: var(--ink); opacity: 0;
+}
+.game-count {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; opacity: 0;
+  font-family: var(--serif); font-size: 46vh; line-height: 1; color: #09090B; will-change: transform;
+}
+#intro, #verdict, #fan { transition: opacity .6s var(--ease); }
+.game-on #intro, .game-on #verdict, .game-on #fan { opacity: 0; pointer-events: none; }
+.game-on .card { pointer-events: none; }
 .top .secret { width: 7px; height: 7px; margin-left: 10px; border-radius: 50%; vertical-align: 1px; box-shadow: inset 0 0 0 1px currentColor; opacity: .45; transition: opacity .3s, background .3s; }
 .top .secret:hover { opacity: .9; }
 .top .secret.on { background: var(--ink); opacity: .7; }
@@ -67,7 +80,7 @@ a { color: inherit; }
 /* ============ Home ============ */
 #home { position: fixed; inset: 0; z-index: 1; overflow: hidden; }
 .top {
-  position: absolute; top: 24px; left: clamp(20px, 3vw, 40px); right: clamp(20px, 3vw, 40px); z-index: 3;
+  position: absolute; top: 24px; left: clamp(20px, 3vw, 40px); right: clamp(20px, 3vw, 40px); z-index: 5;
   display: flex; justify-content: space-between; font-size: 13px; color: var(--dim);
 }
 .intro, .verdict {

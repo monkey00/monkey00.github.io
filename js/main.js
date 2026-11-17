@@ -78,6 +78,7 @@ function setHover(h) {
 }
 window.addEventListener('pointermove', (e) => {
   if (e.pointerType === 'touch' || isSmall() || !detail.hidden) return;
+  if (document.body.classList.contains('game-on')) { setHover(-1); return; }
   const top = baseY - (hover >= 0 ? ch * 0.22 : 0);
   const inside = e.clientY >= top && e.clientX >= x0 - cw * 0.3 && e.clientX <= x0 + step * (n - 1) + cw * 1.3;
   setHover(inside ? clamp(Math.floor((e.clientX - x0) / step), 0, n - 1) : -1);
@@ -287,6 +288,6 @@ async function boot() {
   if (byId[id]) setTimeout(() => openCard(id), 300);
   // The 3D suit is a bonus: the page works without it.
   import('./scenes/home.js').then((m) => m.default($('#bg'))).catch((e) => console.warn('3D unavailable', e));
-  import('./targets.js').then((m) => m.default()).catch(() => {});
+  import('./game.js').then((m) => m.default()).catch((e) => console.warn('game unavailable', e));
 }
 boot();

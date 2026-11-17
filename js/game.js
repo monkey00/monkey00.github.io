@@ -1,0 +1,316 @@
+// A small game hidden behind the dot next to the site name (desktop only).
+//
+// Press the dot: the big suit shakes and bursts into little rings, two lines of instructions
+// come and go, the rings pop into white splotches until the screen is white, a black 3, 2, 1
+// counts down and the 1 swells until everything is black and full of stars. Then rings pop up
+// for a moment each. Hit one before it goes and you score by how close to its centre you hit
+// (10, 5, 3 or 1). Every hit makes the next rings a little quicker. Miss one and the score goes
+// back to zero; the best run sits underneath in red. Press the dot again (or Esc) to leave.
+
+const RINGS = [10, 5, 3, 1];   // points, from the centre out
+const MAX = 2;                 // rings on screen at once while playing
+
+// The intro, in milliseconds from the moment the suit bursts.
+const SAY1 = [700, 2700], SAY2 = [2900, 4900];
+const POP_FROM = 5000, POP_SPREAD = 1500, POP_GROW = 900, WHITE_AT = 7300;
+const TICK = 750, SWELL = 850;
+
+const easeOut = (k) => 1 - (1 - k) ** 3;
+const easeIn = (k) => k ** 3;
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+export default function startGame() {
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = (s) => document.querySelector(s);
+  const detail = $('#detail');
+
+  /* ---------- the layer the game draws on ---------- */
+  const root = document.createElement('div');
+  root.className = 'game';
+  root.hidden = true;
+  root.innerHTML = '<canvas aria-hidden="true"></canvas><p class="game-say" aria-live="polite"></p><div class="game-count" aria-hidden="true"></div>';
+  $('#home').append(root);
+  const canvas = root.querySelector('canvas'), ctx = canvas.getContext('2d');
+  const say = root.querySelector('.game-say'), count = root.querySelector('.game-count');
+
+  let W = 0, H = 0, dpr = 1, diag = 1;
+  const resize = () => {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight; diag = Math.hypot(W, H);
+    canvas.width = W * dpr; canvas.height = H * dpr;
+  };
+  resize(); window.addEventListener('resize', resize);
+
+  /* ---------- score ---------- */
+  const score = document.createElement('span');
+  score.className = 'score';
+  score.hidden = true;
+  score.innerHTML = '<b></b><i></i>';
+  const nowEl = score.firstChild, bestEl = score.lastChild;
+  $('.top').insertBefore(score, $('#clock'));
+  let total = 0, best = 0, hits = 0;
+  try { best = +localStorage.getItem('targets-best') || 0; } catch {}
+  const paint = () => { nowEl.textContent = `${total} pts`; bestEl.textContent = best ? `best ${best}` : ''; };
+  paint();
+
+  // A ring got away: back to zero. If this run was the best yet, it slides down into the red line.
+  function miss() {
+    hits = 0;
+    if (!total) return;
+    const ran = total;
+    total = 0;
+    if (ran > best) {
+      best = ran;
+      try { localStorage.setItem('targets-best', String(best)); } catch {}
+      if (!calm) {
+        const ghost = nowEl.cloneNode(true);
+        ghost.className = 'ghost';
+        score.append(ghost);
+        const drop = bestEl.offsetTop - nowEl.offsetTop;
+        bestEl.style.opacity = '0';
+        ghost.animate(
+          [{ transform: 'translate(-50%, 0)', color: '#B7B8BF' }, { transform: `translate(-50%, ${drop}px)`, color: '#FF4B55' }],
+          { duration: 650, easing: 'cubic-bezier(.65,0,.2,1)' },
+        ).onfinish = () => { ghost.remove(); bestEl.style.opacity = ''; paint(); };
+        nowEl.textContent = '0 pts';
+        nowEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 250, fill: 'backwards' });
+        return;
+      }
+    } else if (!calm) {
+      nowEl.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 400 });
+    }
+    paint();
+  }
+
+  /* ---------- the switch: an unlabelled dot next to the site name ---------- */
+  const toggle = document.createElement('button');
+  toggle.className = 'secret';
+  toggle.setAttribute('aria-label', 'Something in the background');
+  toggle.setAttribute('aria-pressed', 'false');
+  $('.top > span').append(toggle);
+  toggle.addEventListener('click', () => (on ? stop() : start()));
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && on) stop(); });
+
+  /* ---------- state ---------- */
+  let on = false, leaving = null, phase = 'off', t0 = 0, fallback = 0;
+  let intro = [], targets = [], pops = [], stars = [];
+  let nextAt = 0, mx = -1e4, my = -1e4;
+
+  function setPhase(p) { phase = p; t0 = performance.now(); }
+
+  function start() {
+    if (!detail.hidden || W <= 760) return;
+    if (leaving) { leaving.cancel(); leaving = null; }
+    on = true;
+    toggle.classList.add('on'); toggle.setAttribute('aria-pressed', 'true');
+    document.body.classList.add('game-on');
+    root.hidden = false; root.style.clipPath = '';
+    say.style.opacity = 0; count.style.opacity = 0;
+    intro = []; targets = []; pops = [];
+    total = 0; hits = 0; paint(); score.hidden = true;
+    setPhase('shake');
+    window.dispatchEvent(new CustomEvent('game', { detail: 'explode' }));
+    // If the 3D suit is not there (no WebGL), burst from where it would have been.
+    clearTimeout(fallback);
+    fallback = setTimeout(() => { if (phase === 'shake') burst(W * 0.74, H * 0.32, 90); }, 1100);
+  }
+
+  window.addEventListener('suit-burst', (e) => { if (on && phase === 'shake') burst(e.detail.x, e.detail.y, e.detail.r); });
+
+  function burst(x, y, r) {
+    clearTimeout(fallback);
+    setPhase('intro');
+    // Each ring flies to its own patch of a loose grid, so the splotches later cover everything.
+    const cols = 8, rows = 6;
+    for (let c = 0; c < cols; c++) for (let w = 0; w < rows; w++) {
+      const a = Math.random() * Math.PI * 2, d = Math.random() * r * 0.6;
+      intro.push({
+        sx: x + Math.cos(a) * d, sy: y + Math.sin(a) * d,
+        hx: ((c + 0.15 + Math.random() * 0.7) / cols) * W, hy: ((w + 0.15 + Math.random() * 0.7) / rows) * H,
+        r: 6 + Math.random() * 9, fly: 900 + Math.random() * 700, wob: Math.random() * 6.28,
+        popAt: POP_FROM + Math.random() * POP_SPREAD, big: diag * (0.17 + Math.random() * 0.1),
+      });
+    }
+  }
+
+  function stop() {
+    if (!on) return;
+    on = false;
+    clearTimeout(fallback);
+    toggle.classList.remove('on'); toggle.setAttribute('aria-pressed', 'false');
+    score.hidden = true; setAim(null);
+    document.body.classList.remove('game-on');
+    window.dispatchEvent(new CustomEvent('game', { detail: 'restore' }));
+    // The whole game folds back into the dot it came from.
+    const b = toggle.getBoundingClientRect(), x = b.left + b.width / 2, y = b.top + b.height / 2;
+    leaving = root.animate(
+      [{ clipPath: `circle(${diag * 1.1}px at ${x}px ${y}px)` }, { clipPath: `circle(0px at ${x}px ${y}px)` }],
+      { duration: calm ? 1 : 850, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'forwards' },
+    );
+    leaving.onfinish = () => {
+      leaving = null; root.hidden = true; phase = 'off';
+      intro = []; targets = []; pops = [];
+      say.style.opacity = 0; count.style.opacity = 0;
+    };
+  }
+
+  /* ---------- stars for the backdrop ---------- */
+  function makeStars() {
+    stars = Array.from({ length: Math.round((W * H) / 5200) }, () => ({
+      x: Math.random() * W, y: Math.random() * H, s: 0.35 + Math.random() ** 3 * 1.1,
+      a: 0.15 + Math.random() * 0.55, tw: Math.random() * 6.28, v: 1 + Math.random() * 4,
+    }));
+  }
+  function drawSpace(now, dt, alpha = 1) {
+    ctx.fillStyle = '#060608'; ctx.fillRect(0, 0, W, H);
+    for (const s of stars) {
+      s.y -= s.v * dt; if (s.y < -2) { s.y = H + 2; s.x = Math.random() * W; }
+      const a = alpha * s.a * (0.65 + 0.35 * Math.sin(now / 900 + s.tw));
+      ctx.fillStyle = `rgba(242,241,237,${a})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.s, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  /* ---------- playing ---------- */
+  function spawn(now) {
+    const r = 17 + Math.random() * 6;
+    for (let tries = 0; tries < 20; tries++) {
+      const x = 40 + r + Math.random() * (W - 2 * r - 80);
+      const y = 100 + r + Math.random() * (H - 2 * r - 150);
+      if (targets.some((t) => Math.hypot(t.x - x, t.y - y) < t.r + r + 60)) continue;
+      targets.push({ x, y, r, born: now, life: Math.max(650, (2200 + Math.random() * 900) * 0.93 ** hits), hot: 0 });
+      return;
+    }
+  }
+
+  function hit(x, y) {
+    for (let i = targets.length - 1; i >= 0; i--) {
+      const t = targets[i], d = Math.hypot(x - t.x, y - t.y);
+      if (d > t.r + 5) continue;
+      const pts = RINGS[Math.min(RINGS.length - 1, Math.floor((Math.min(d, t.r - 0.01) / t.r) * RINGS.length))];
+      targets.splice(i, 1);
+      pops.push({ x: t.x, y: t.y, r: t.r, px: x, py: y, pts, born: performance.now() });
+      total += pts; hits++;
+      paint();
+      nowEl.classList.remove('bump'); void nowEl.offsetWidth; nowEl.classList.add('bump');
+      return;
+    }
+  }
+
+  window.addEventListener('pointermove', (e) => { mx = e.clientX; my = e.clientY; }, { passive: true });
+  root.addEventListener('pointerdown', (e) => { if (e.button === 0 && on && phase === 'play') hit(e.clientX, e.clientY); });
+
+  // Just a thin ring, the same as the cursor's, with a red hairline that runs down with its time.
+  function drawTarget(t, fade, age) {
+    const grow = calm ? 1 : easeOut(Math.min(1, age / 260));
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(242,241,237,${fade * (0.55 + t.hot * 0.4)})`;
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r * (0.6 + 0.4 * grow), 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,75,85,${fade * 0.6})`;
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - age / t.life)); ctx.stroke();
+  }
+
+  let aimed = false;
+  function setAim(v) {
+    if (v === aimed) return;
+    aimed = v;
+    const r = $('.cur-ring'); if (r) r.classList.toggle('aim', v);
+  }
+
+  /* ---------- one frame ---------- */
+  let last = performance.now();
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (phase === 'off' || document.hidden) return;
+    const e = now - t0;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (phase === 'shake') return;
+
+    if (phase === 'intro') {
+      // the instructions, one line after the other
+      const f = (a, b) => clamp01((e - a) / 380) * clamp01((b - e) / 380);
+      if (e < SAY2[0]) { say.textContent = 'click as many targets as you can'; say.style.opacity = f(...SAY1); }
+      else { say.textContent = 'the closer to the center the more points'; say.style.opacity = f(...SAY2); }
+
+      for (const p of intro) {
+        const k = easeOut(clamp01(e / p.fly));
+        const x = p.sx + (p.hx - p.sx) * k + Math.sin(now / 1100 + p.wob) * 6 * k;
+        const y = p.sy + (p.hy - p.sy) * k + Math.cos(now / 1300 + p.wob) * 6 * k;
+        if (e < p.popAt) {
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = `rgba(242,241,237,${0.75 * clamp01(e / 120)})`;
+          ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI * 2); ctx.stroke();
+        } else {
+          const g = easeOut(clamp01((e - p.popAt) / POP_GROW));
+          ctx.fillStyle = '#F4F3EF';
+          ctx.beginPath(); ctx.arc(x, y, p.r + (p.big - p.r) * g, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      // make sure nothing peeks through at the end
+      const wash = clamp01((e - (WHITE_AT - 600)) / 600);
+      if (wash > 0) { ctx.fillStyle = `rgba(244,243,239,${wash})`; ctx.fillRect(0, 0, W, H); }
+      if (e >= WHITE_AT) { say.style.opacity = 0; setPhase('count'); }
+      return;
+    }
+
+    if (phase === 'count') {
+      ctx.fillStyle = '#F4F3EF'; ctx.fillRect(0, 0, W, H);
+      const n = Math.floor(e / TICK);
+      if (n < 3) {
+        const k = (e % TICK) / TICK;
+        count.textContent = String(3 - n);
+        count.style.opacity = clamp01(k / 0.12) * (n < 2 ? clamp01((1 - k) / 0.15) : 1);
+        count.style.transform = `translate(-50%, -50%) scale(${1.12 - 0.12 * easeOut(Math.min(1, k * 2))})`;
+      } else { makeStars(); setPhase('swell'); }
+      return;
+    }
+
+    if (phase === 'swell') {
+      // the 1 grows until it swallows the screen, and space shows through it
+      const k = clamp01(e / SWELL), g = easeIn(k);
+      ctx.fillStyle = '#F4F3EF'; ctx.fillRect(0, 0, W, H);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, diag * 0.62 * g, 0, Math.PI * 2); ctx.clip();
+      drawSpace(now, dt, g);
+      ctx.restore();
+      count.style.transform = `translate(-50%, -50%) scale(${1 + 70 * g})`;
+      count.style.opacity = 1 - clamp01((k - 0.75) / 0.25);
+      if (k >= 1) {
+        count.style.opacity = 0;
+        setPhase('play'); nextAt = now + 600;
+        if (on) { score.hidden = false; paint(); }
+      }
+      return;
+    }
+
+    // play
+    drawSpace(now, dt);
+    if (on && targets.length < MAX && now > nextAt) { spawn(now); nextAt = now + 700 + Math.random() * 1800 * 0.95 ** hits; }
+    let over = false;
+    for (let i = targets.length - 1; i >= 0; i--) {
+      const t = targets[i], age = now - t.born;
+      if (age > t.life) { targets.splice(i, 1); if (on) miss(); continue; }
+      const near = Math.hypot(mx - t.x, my - t.y) < t.r + 5;
+      if (near) over = true;
+      t.hot += ((near ? 1 : 0) - t.hot) * 0.12;
+      drawTarget(t, Math.min(1, age / 160, (t.life - age) / 350), age);
+    }
+    setAim(on && over);
+    for (let i = pops.length - 1; i >= 0; i--) {
+      const p = pops[i], k = (now - p.born) / 900;
+      if (k >= 1) { pops.splice(i, 1); continue; }
+      const g = easeOut(k);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(242,241,237,${0.4 * (1 - k)})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + g * 0.9), 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = p.pts === 10 ? `rgba(255,75,85,${1 - k})` : `rgba(242,241,237,${0.85 * (1 - k)})`;
+      ctx.font = '500 12px "Geist Mono", ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`+${p.pts}`, p.px, p.py - 14 - g * 22);
+    }
+  }
+  requestAnimationFrame(frame);
+}
