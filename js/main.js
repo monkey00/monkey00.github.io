@@ -109,7 +109,28 @@ function setSuit(s) {
   document.querySelectorAll('.suit').forEach((x) => x.classList.toggle('on', x.dataset.suit === s));
   items.forEach((it) => it.el.classList.toggle('dimmed', !!s && it.card.suit !== s));
   syncHero();
+  if (isSmall()) regroup();
 }
+
+// On phones the cards are a grid, so the chosen suit moves to the top and the rest fade below it.
+function regroup() {
+  const before = new Map(items.map((it) => [it, it.el.getBoundingClientRect()]));
+  const order = activeSuit ? [...items.filter((it) => it.card.suit === activeSuit), ...items.filter((it) => it.card.suit !== activeSuit)] : items;
+  order.forEach((it) => fan.appendChild(it.el));
+  if (!calm) {
+    items.forEach((it) => {
+      const a = before.get(it), b = it.el.getBoundingClientRect();
+      const dx = a.left - b.left, dy = a.top - b.top;
+      if (dx || dy) it.el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    });
+  }
+  // Make sure the first row of the chosen suit is on screen.
+  if (activeSuit) {
+    const f = fan.getBoundingClientRect(), H = window.innerHeight;
+    if (f.top + 36 + cw * 1.42 > H) home.scrollTo({ top: home.scrollTop + f.top - H * 0.25, behavior: calm ? 'auto' : 'smooth' });
+  }
+}
+window.addEventListener('resize', () => { if (!isSmall() && fan.firstElementChild !== items[0].el) items.forEach((it) => fan.appendChild(it.el)); });
 document.querySelectorAll('.suit').forEach((b) => b.addEventListener('click', () => {
   setSuit(activeSuit === b.dataset.suit ? null : b.dataset.suit);
 }));
@@ -266,5 +287,6 @@ async function boot() {
   if (byId[id]) setTimeout(() => openCard(id), 300);
   // The 3D suit is a bonus: the page works without it.
   import('./scenes/home.js').then((m) => m.default($('#bg'))).catch((e) => console.warn('3D unavailable', e));
+  import('./targets.js').then((m) => m.default()).catch(() => {});
 }
 boot();
