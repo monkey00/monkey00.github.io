@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Golden Bearings · a Berkeley guessing game</title>
+  <meta name="description" content="A cozy GeoGuessr-style game set entirely on and around the UC Berkeley campus.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐻</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Gochi+Hand&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===================== MAIN MENU ===================== -->
+<section id="menu" class="screen active" aria-label="Main menu">
+  <div class="scene" aria-hidden="true">
+    <div class="sky"></div>
+    <div class="stars"></div>
+    <div class="moon"></div>
+    <svg class="scene-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice">
+      <defs>
+        <linearGradient id="g-grass" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1e4230"/><stop offset="1" stop-color="#08150f"/>
+        </linearGradient>
+        <radialGradient id="g-warm" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stop-color="#ffb347" stop-opacity=".85"/><stop offset=".45" stop-color="#ff8a2a" stop-opacity=".35"/><stop offset="1" stop-color="#ff8a2a" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="g-trunk" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#2a140b"/><stop offset=".6" stop-color="#7a3d1d"/><stop offset="1" stop-color="#c0632a"/>
+        </linearGradient>
+        <linearGradient id="g-tent" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ffb04a"/><stop offset="1" stop-color="#e2611c"/>
+        </linearGradient>
+        <pattern id="p-fence" width="30" height="90" patternUnits="userSpaceOnUse">
+          <path d="M8 90V16l7-10 7 10v74z" fill="#c9d4ea"/>
+        </pattern>
+      </defs>
+      <!-- far hills -->
+      <path d="M0 560 Q 180 470 400 520 T 820 500 T 1250 470 T 1600 520 V900 H0Z" fill="#12305a"/>
+      <!-- campanile silhouette -->
+      <g transform="translate(985 250)">
+        <polygon points="0,0 -30,66 30,66" fill="#163a68"/>
+        <rect x="-28" y="64" width="56" height="62" fill="#163a68"/>
+        <rect x="-18" y="76" width="12" height="38" rx="6" fill="#ffd27a" class="belfry"/>
+        <rect x="6" y="76" width="12" height="38" rx="6" fill="#ffd27a" class="belfry"/>
+        <rect x="-23" y="124" width="46" height="300" fill="#163a68"/>
+        <circle cx="0" cy="150" r="11" fill="#ffe7a8" class="clock-glow"/>
+      </g>
+      <path d="M0 610 Q 320 560 640 600 T 1240 585 T 1600 610 V900 H0Z" fill="#0d2546"/>
+      <!-- brown-shingle house on the left -->
+      <g transform="translate(30 430)">
+        <polygon points="-20,90 120,0 260,90" fill="#151a2c"/>
+        <rect x="0" y="88" width="240" height="220" fill="#1b2133"/>
+        <rect x="28" y="120" width="44" height="58" rx="4" fill="#ffc46b" class="win"/>
+        <rect x="98" y="120" width="44" height="58" rx="4" fill="#ffb24f" class="win w2"/>
+        <rect x="168" y="120" width="44" height="58" rx="4" fill="#ffc46b" class="win w3"/>
+        <rect x="28" y="205" width="44" height="58" rx="4" fill="#ffa940" class="win w2"/>
+        <rect x="168" y="205" width="44" height="58" rx="4" fill="#ffc46b" class="win"/>
+        <path d="M28 149h44M50 120v58M98 149h44M120 120v58M168 149h44M190 120v58M28 234h44M50 205v58M168 234h44M190 205v58" stroke="#1b2133" stroke-width="4"/>
+      </g>
+      <!-- picket fence -->
+      <rect x="0" y="628" width="1600" height="90" fill="url(#p-fence)" opacity=".28"/>
+      <rect x="0" y="655" width="1600" height="7" fill="#c9d4ea" opacity=".22"/>
+      <!-- glowing tent on the glade -->
+      <ellipse cx="1180" cy="700" rx="260" ry="170" fill="url(#g-warm)" class="tent-glow"/>
+      <path d="M1080 735 L1180 610 L1290 735 Z" fill="url(#g-tent)"/>
+      <path d="M1180 610 L1165 735 L1198 735 Z" fill="#8a3110" opacity=".55"/>
+      <!-- ground -->
+      <path d="M0 705 Q 800 660 1600 705 V900 H0Z" fill="url(#g-grass)"/>
+      <!-- left tree -->
+      <g fill="#081426">
+        <path d="M265 900 C 280 760 270 640 300 520 L 330 520 C 320 650 340 770 345 900Z"/>
+        <circle cx="300" cy="420" r="120"/><circle cx="190" cy="470" r="95"/><circle cx="400" cy="470" r="100"/>
+        <circle cx="250" cy="330" r="90"/><circle cx="370" cy="340" r="85"/>
+      </g>
+      <!-- right big tree with warm-lit trunk -->
+      <g>
+        <path d="M1370 900 C 1400 760 1380 640 1430 470 C 1450 420 1500 380 1540 360 L 1560 390 C 1520 420 1490 470 1480 540 C 1470 650 1490 770 1520 900 Z" fill="url(#g-trunk)"/>
+        <path d="M1440 520 C 1380 470 1330 440 1270 430" stroke="#5a2c14" stroke-width="22" fill="none" stroke-linecap="round"/>
+        <g fill="#07122a">
+          <circle cx="1300" cy="300" r="140"/><circle cx="1460" cy="250" r="160"/><circle cx="1180" cy="230" r="110"/>
+          <circle cx="1560" cy="380" r="120"/><circle cx="1380" cy="160" r="120"/><circle cx="1600" cy="180" r="120"/>
+        </g>
+      </g>
+    </svg>
+    <svg class="lights" viewBox="0 0 1600 140" preserveAspectRatio="none">
+      <path d="M-10 20 Q 400 120 800 40 T 1610 30" stroke="#20283c" stroke-width="3" fill="none"/>
+      <g class="bulbs"></g>
+    </svg>
+    <div class="fireflies"></div>
+    <div class="vignette"></div>
+  </div>
+
+  <header class="logo">
+    <div class="logo-small">play</div>
+    <h1>Golden <span>Bearings</span></h1>
+    <p>A cozy guessing game around UC Berkeley</p>
+  </header>
+
+  <div class="menu-main">
+    <nav class="mode-list" aria-label="Game modes">
+      <button class="mode-btn" data-mode="classic" style="--rot:-4deg;--x:0px">Campus Classic</button>
+      <button class="mode-btn" data-mode="wander" style="--rot:2deg;--x:14px">Wander Mode</button>
+      <button class="mode-btn" data-mode="sprint" style="--rot:-2deg;--x:26px">Bear Sprint</button>
+      <button class="mode-btn" data-mode="daily" style="--rot:3deg;--x:40px">Daily Stroll</button>
+    </nav>
+
+    <div class="orb-wrap">
+      <svg class="orb" viewBox="0 0 420 420" aria-hidden="true">
+        <defs>
+          <radialGradient id="g-leather" cx="38%" cy="30%" r="78%">
+            <stop offset="0" stop-color="#b27c52"/><stop offset=".55" stop-color="#6b4026"/><stop offset="1" stop-color="#2e1a0e"/>
+          </radialGradient>
+          <radialGradient id="g-shade" cx="45%" cy="40%" r="60%">
+            <stop offset=".65" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/>
+          </radialGradient>
+          <pattern id="p-tweed" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+            <rect width="10" height="10" fill="#56742a"/><rect width="5" height="10" fill="#6b8f35"/><path d="M0 0h10" stroke="#3f561c" stroke-width="2"/>
+          </pattern>
+          <pattern id="p-denim" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
+            <rect width="6" height="6" fill="#2d4f86"/><path d="M0 0v6" stroke="#3f68ab" stroke-width="2"/>
+          </pattern>
+          <pattern id="p-felt" width="8" height="8" patternUnits="userSpaceOnUse">
+            <rect width="8" height="8" fill="#6a3f8f"/><circle cx="2" cy="2" r="1.2" fill="#7f52a6"/><circle cx="6" cy="6" r="1.2" fill="#56317a"/>
+          </pattern>
+          <pattern id="p-gingham-red" width="30" height="30" patternUnits="userSpaceOnUse">
+            <rect width="30" height="30" fill="#fffaf0"/><rect width="15" height="30" fill="#e2414a" opacity=".55"/><rect width="30" height="15" fill="#e2414a" opacity=".55"/>
+          </pattern>
+          <pattern id="p-gingham-green" width="30" height="30" patternUnits="userSpaceOnUse">
+            <rect width="30" height="30" fill="#fffaf0"/><rect width="15" height="30" fill="#5cb83a" opacity=".55"/><rect width="30" height="15" fill="#5cb83a" opacity=".55"/>
+          </pattern>
+          <pattern id="p-gingham-gold" width="30" height="30" patternUnits="userSpaceOnUse">
+            <rect width="30" height="30" fill="#fffaf0"/><rect width="15" height="30" fill="#f4a51a" opacity=".6"/><rect width="30" height="15" fill="#f4a51a" opacity=".6"/>
+          </pattern>
+          <pattern id="p-gingham-blue" width="30" height="30" patternUnits="userSpaceOnUse">
+            <rect width="30" height="30" fill="#fffaf0"/><rect width="15" height="30" fill="#3a7be0" opacity=".55"/><rect width="30" height="15" fill="#3a7be0" opacity=".55"/>
+          </pattern>
+          <clipPath id="c-ball"><circle cx="210" cy="210" r="168"/></clipPath>
+          <clipPath id="c-hex"><polygon points="210,128 281,169 281,251 210,292 139,251 139,169"/></clipPath>
+        </defs>
+
+        <!-- curly tail + leaf -->
+        <path d="M118 350 q-34 34 -14 58 q22 16 32 -6 q8 -20 -12 -20" fill="none" stroke="#d0609a" stroke-width="8" stroke-linecap="round"/>
+        <path d="M232 52 q8 -44 58 -46 q-4 36 -48 52z" fill="#4e7d2b" stroke="#2c4a15" stroke-width="3"/>
+        <path d="M238 50 q20 -20 44 -36" stroke="#2c4a15" stroke-width="2.5" fill="none"/>
+
+        <circle cx="210" cy="210" r="174" fill="#1e1008"/>
+        <g clip-path="url(#c-ball)">
+          <circle cx="210" cy="210" r="168" fill="url(#g-leather)"/>
+          <path d="M40 230 Q110 330 210 380 L210 300 Q140 292 102 222 Z" fill="url(#p-tweed)"/>
+          <path d="M300 56 Q372 110 380 200 L312 210 Q302 140 262 110 Z" fill="url(#p-denim)"/>
+          <path d="M58 122 Q92 60 160 44 L176 112 Q130 122 114 162 Z" fill="url(#p-felt)"/>
+          <path d="M40 230 Q110 330 210 380 L210 300 Q140 292 102 222 Z M300 56 Q372 110 380 200 L312 210 Q302 140 262 110 Z M58 122 Q92 60 160 44 L176 112 Q130 122 114 162 Z" fill="none" stroke="#f3dfb5" stroke-width="2.5" stroke-dasharray="7 6" opacity=".8"/>
+          <circle cx="210" cy="210" r="168" fill="url(#g-shade)"/>
+        </g>
+        <circle cx="210" cy="210" r="160" fill="none" stroke="#f3dfb5" stroke-width="3" stroke-dasharray="11 8" opacity=".85"/>
+
+        <!-- buckle -->
+        <rect x="182" y="40" width="56" height="34" rx="6" fill="none" stroke="#d4ad55" stroke-width="7"/>
+        <rect x="205" y="36" width="8" height="42" rx="3" fill="#d4ad55"/>
+
+        <!-- inner ring + hex -->
+        <circle cx="210" cy="210" r="114" fill="#3b2213" stroke="#1c0e06" stroke-width="9"/>
+        <circle cx="210" cy="210" r="103" fill="none" stroke="#e9cf9c" stroke-width="2.5" stroke-dasharray="8 6"/>
+        <polygon id="orb-hex" points="210,128 281,169 281,251 210,292 139,251 139,169" fill="url(#p-gingham-red)" stroke="#2b1a10" stroke-width="5" stroke-linejoin="round"/>
+
+        <g id="orb-icons" clip-path="url(#c-hex)">
+          <g class="orb-icon" data-icon="classic" transform="translate(210 212) scale(.78) translate(-210 -212)">
+            <polygon points="210,124 186,166 234,166" fill="#5a6b8c" stroke="#1d2b4a" stroke-width="5" stroke-linejoin="round"/>
+            <rect x="186" y="164" width="48" height="40" rx="3" fill="#fff4dd" stroke="#1d2b4a" stroke-width="5"/>
+            <rect x="195" y="172" width="11" height="26" rx="5.5" fill="#1d2b4a"/>
+            <rect x="214" y="172" width="11" height="26" rx="5.5" fill="#1d2b4a"/>
+            <rect x="191" y="202" width="38" height="92" fill="#fff4dd" stroke="#1d2b4a" stroke-width="5"/>
+            <circle cx="210" cy="220" r="10" fill="#fdb515" stroke="#1d2b4a" stroke-width="3.5"/>
+            <path d="M210 220v-6M210 220h5" stroke="#1d2b4a" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M201 238v50M219 238v50" stroke="#e3cfa6" stroke-width="3.5"/>
+            <rect x="180" y="290" width="60" height="10" rx="4" fill="#5a6b8c" stroke="#1d2b4a" stroke-width="4"/>
+          </g>
+          <g class="orb-icon" data-icon="wander">
+            <circle cx="210" cy="210" r="54" fill="#fff4dd" stroke="#1d2b4a" stroke-width="6"/>
+            <circle cx="210" cy="210" r="43" fill="none" stroke="#e3cfa6" stroke-width="3" stroke-dasharray="4 6"/>
+            <polygon points="210,166 223,210 197,210" fill="#e8505b" stroke="#1d2b4a" stroke-width="3.5" stroke-linejoin="round"/>
+            <polygon points="210,254 223,210 197,210" fill="#5a6b8c" stroke="#1d2b4a" stroke-width="3.5" stroke-linejoin="round"/>
+            <circle cx="210" cy="210" r="7" fill="#fdb515" stroke="#1d2b4a" stroke-width="3"/>
+          </g>
+          <g class="orb-icon" data-icon="sprint">
+            <path d="M146 196h22M140 214h24M146 232h22" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+            <rect x="199" y="146" width="22" height="16" rx="5" fill="#e8505b" stroke="#1d2b4a" stroke-width="4"/>
+            <circle cx="214" cy="218" r="52" fill="#fff4dd" stroke="#1d2b4a" stroke-width="6"/>
+            <path d="M214 176v8M214 252v8M172 218h8M248 218h8" stroke="#1d2b4a" stroke-width="4" stroke-linecap="round"/>
+            <path d="M214 218 L214 188" stroke="#1d2b4a" stroke-width="6" stroke-linecap="round" class="sw-hand"/>
+            <path d="M214 218 L236 230" stroke="#e8505b" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="214" cy="218" r="6" fill="#1d2b4a"/>
+          </g>
+          <g class="orb-icon" data-icon="daily">
+            <rect x="160" y="166" width="100" height="96" rx="12" fill="#fff4dd" stroke="#1d2b4a" stroke-width="5"/>
+            <path d="M160 178a12 12 0 0 1 12-12h76a12 12 0 0 1 12 12v16H160z" fill="#3a7be0" stroke="#1d2b4a" stroke-width="5" stroke-linejoin="round"/>
+            <rect x="180" y="154" width="9" height="24" rx="4.5" fill="#1d2b4a"/>
+            <rect x="231" y="154" width="9" height="24" rx="4.5" fill="#1d2b4a"/>
+            <text id="orb-day" x="210" y="248" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="46" fill="#1d2b4a">1</text>
+          </g>
+        </g>
+
+        <!-- sewn buttons -->
+        <g transform="translate(92 290)"><circle r="15" fill="#e9b73b" stroke="#8a6110" stroke-width="3"/><circle cx="-4" cy="-4" r="2.4" fill="#8a6110"/><circle cx="4" cy="-4" r="2.4" fill="#8a6110"/><circle cx="-4" cy="4" r="2.4" fill="#8a6110"/><circle cx="4" cy="4" r="2.4" fill="#8a6110"/></g>
+        <g transform="translate(332 284)"><circle r="12" fill="#e8505b" stroke="#8c2128" stroke-width="3"/><circle cx="-3" cy="0" r="2.2" fill="#8c2128"/><circle cx="3" cy="0" r="2.2" fill="#8c2128"/></g>
+        <g transform="translate(300 352)"><circle r="10" fill="#7bc1ff" stroke="#255c9a" stroke-width="3"/><circle cx="-3" cy="0" r="2" fill="#255c9a"/><circle cx="3" cy="0" r="2" fill="#255c9a"/></g>
+
+        <!-- bunting -->
+        <path d="M70 140 Q 92 210 120 270" stroke="#e8dcc0" stroke-width="2.5" fill="none"/>
+        <polygon points="74,156 98,160 80,180" fill="#fdb515"/>
+        <polygon points="84,190 108,192 90,214" fill="#e8505b"/>
+        <polygon points="96,224 120,224 104,248" fill="#3a7be0"/>
+        <polygon points="110,256 132,254 120,276" fill="#5cb83a"/>
+
+        <!-- telescope -->
+        <g transform="rotate(28 360 250)">
+          <rect x="350" y="236" width="56" height="26" rx="8" fill="#9c7c45" stroke="#3d2a10" stroke-width="4"/>
+          <rect x="398" y="232" width="18" height="34" rx="6" fill="#d4ad55" stroke="#3d2a10" stroke-width="4"/>
+        </g>
+      </svg>
+      <div class="orb-shadow"></div>
+    </div>
+
+    <aside class="mode-card" aria-live="polite">
+      <h2 id="card-title">Campus Classic</h2>
+      <div class="card-main">
+        <div class="polaroid"><span id="card-emoji">🔔</span></div>
+        <div>
+          <div class="big-stat" id="card-big">0%</div>
+          <div class="stat-label" id="card-big-label">Sticker book</div>
+        </div>
+      </div>
+      <div class="card-sub">
+        <div class="sub-row"><span class="sub-ico">🏆</span><div><b id="card-s1">0</b><span id="card-s1-label">Best score</span></div></div>
+        <div class="sub-row"><span class="sub-ico">🎯</span><div><b id="card-s2">—</b><span id="card-s2-label">Closest guess</span></div></div>
+      </div>
+      <p class="card-blurb" id="card-blurb"></p>
+      <button class="play-btn" id="btn-play">Let's go! ▶</button>
+    </aside>
+  </div>
+
+  <div class="bear-wrap" aria-hidden="true">
+    <svg class="bear" viewBox="0 0 220 190">
+      <ellipse cx="110" cy="182" rx="80" ry="8" fill="#000" opacity=".35"/>
+      <ellipse cx="110" cy="140" rx="58" ry="44" fill="#a0693e"/>
+      <ellipse cx="110" cy="148" rx="34" ry="28" fill="#d9a873"/>
+      <ellipse cx="70" cy="172" rx="22" ry="13" fill="#8a5730"/>
+      <ellipse cx="150" cy="172" rx="22" ry="13" fill="#8a5730"/>
+      <circle cx="68" cy="36" r="19" fill="#a0693e"/><circle cx="68" cy="36" r="9" fill="#e8b98a"/>
+      <circle cx="152" cy="36" r="19" fill="#a0693e"/><circle cx="152" cy="36" r="9" fill="#e8b98a"/>
+      <circle cx="110" cy="70" r="48" fill="#a0693e"/>
+      <path d="M110 24 v24" stroke="#7a4a26" stroke-width="2.5" stroke-dasharray="4 4"/>
+      <ellipse cx="110" cy="88" rx="23" ry="17" fill="#ecc797"/>
+      <ellipse cx="110" cy="80" rx="8.5" ry="6" fill="#2b1d14"/>
+      <path d="M102 94 q8 7 16 0" stroke="#2b1d14" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <g class="eyes">
+        <circle cx="90" cy="64" r="6" fill="#2b1d14"/><circle cx="130" cy="64" r="6" fill="#2b1d14"/>
+        <circle cx="92" cy="62" r="2" fill="#fff"/><circle cx="132" cy="62" r="2" fill="#fff"/>
+      </g>
+      <circle cx="78" cy="82" r="7" fill="#ff8fa3" opacity=".6"/><circle cx="142" cy="82" r="7" fill="#ff8fa3" opacity=".6"/>
+      <!-- scarf -->
+      <path d="M68 108 q42 18 84 0 l-2 14 q-40 16 -80 0z" fill="#fdb515" stroke="#c98a00" stroke-width="2"/>
+      <path d="M128 118 l10 28 l-14 -2 z" fill="#fdb515" stroke="#c98a00" stroke-width="2"/>
+      <!-- folded map -->
+      <g class="bear-map">
+        <path d="M70 128 l26 -8 l28 8 l26 -8 v40 l-26 8 l-28 -8 l-26 8 z" fill="#fff4dd" stroke="#2b1d14" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M96 120v40M124 128v40" stroke="#d8c19a" stroke-width="2.5"/>
+        <path d="M80 150 q14 -14 26 -4 t26 -8" stroke="#e8505b" stroke-width="3" fill="none" stroke-dasharray="4 4" stroke-linecap="round"/>
+        <circle cx="136" cy="136" r="5" fill="#e8505b"/>
+      </g>
+      <ellipse cx="74" cy="140" rx="12" ry="11" fill="#a0693e"/>
+      <ellipse cx="146" cy="140" rx="12" ry="11" fill="#a0693e"/>
+    </svg>
+  </div>
+
+  <footer class="menu-footer">
+    <div class="foot-group">
+      <button class="foot-btn" id="btn-stickers"><span>📒</span> Sticker Book</button>
+      <button class="foot-btn" id="btn-howto"><span>❓</span> How to Play</button>
+    </div>
+    <button class="foot-btn" id="btn-settings"><span>⚙️</span> Settings</button>
+  </footer>
+</section>
+
+<!-- ===================== GAME ===================== -->
+<section id="game" class="screen" aria-label="Game">
+  <div id="pano"><iframe id="pano-frame" title="Street View"></iframe></div>
+
+  <div class="hud-left">
+    <button class="hud-btn" id="btn-quit" title="Back to menu"><span>🏠</span></button>
+  </div>
+  <div class="hud-top">
+    <div class="pill pill-round"><small>Round</small><b id="hud-round">1 / 5</b></div>
+    <div class="pill pill-score"><small>Score</small><b id="hud-score">0</b></div>
+    <div class="pill pill-timer" id="hud-timer-pill" hidden><small>Time</small><b id="hud-timer">0:45</b></div>
+  </div>
+
+  <div class="hud-bottom-left">
+    <button class="hud-btn" id="btn-return" title="Return to start (R)"><span>🚩</span><em>Back to start</em></button>
+    <button class="hud-btn" id="btn-hint" title="Get a hint (H)"><span>🐾</span><em>Hint (−30%)</em></button>
+  </div>
+
+  <div id="guess-wrap" class="guess-wrap">
+    <div class="guess-tools">
+      <div class="layer-switch" role="group" aria-label="Map style">
+        <button data-layer="storybook" title="Map">🗺️</button>
+        <button data-layer="satellite" title="Satellite">🛰️</button>
+      </div>
+      <button class="pin-lock" id="btn-lock" title="Keep map big">📌</button>
+      <button class="pin-lock mobile-close" id="btn-map-close" title="Close map">✕</button>
+    </div>
+    <div class="guess-map-frame"><div id="guess-map"></div></div>
+    <button class="guess-btn" id="btn-guess" disabled>Drop a pin on the map</button>
+  </div>
+  <button class="mobile-map-btn" id="btn-map-open">🗺️ Map</button>
+</section>
+
+<!-- ===================== ROUND RESULT ===================== -->
+<section id="result" class="screen" aria-label="Round result">
+  <div id="result-map" class="full-map"></div>
+  <div class="result-card paper-card">
+    <div class="rc-top">
+      <span class="tag" id="rc-round">Round 1 / 5</span>
+      <span class="rc-react" id="rc-react">So close!</span>
+    </div>
+    <div class="rc-points"><span id="rc-points">0</span><small>pts</small></div>
+    <div class="yarn-bar"><div class="yarn-fill" id="rc-bar"></div></div>
+    <p class="rc-dist" id="rc-dist"></p>
+    <div class="rc-landmark" id="rc-landmark">
+      <div class="sticker" id="rc-sticker">🔔</div>
+      <div class="rc-lm-text">
+        <h3 id="rc-lm-name">Sather Tower</h3>
+        <p id="rc-lm-fact"></p>
+      </div>
+      <span class="new-badge" id="rc-new" hidden>New sticker!</span>
+    </div>
+    <button class="big-btn" id="btn-next">Next spot ▶</button>
+  </div>
+</section>
+
+<!-- ===================== GAME SUMMARY ===================== -->
+<section id="summary" class="screen" aria-label="Game summary">
+  <div id="summary-map" class="full-map"></div>
+  <div class="summary-card paper-card">
+    <div class="sum-stars" id="sum-stars"><span>★</span><span>★</span><span>★</span></div>
+    <h2 id="sum-title">Stroll complete!</h2>
+    <div class="sum-total"><span id="sum-total">0</span><small>/ 25,000</small></div>
+    <span class="new-badge big" id="sum-best" hidden>New best!</span>
+    <ol class="sum-rounds" id="sum-rounds"></ol>
+    <div class="sum-actions">
+      <button class="big-btn" id="btn-again">Play again ↻</button>
+      <button class="big-btn blue" id="btn-share">Share 📋</button>
+      <button class="big-btn ghost" id="btn-menu">Menu</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== LOADING ===================== -->
+<div id="loading" class="loading" hidden>
+  <svg class="yarn" viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="40" fill="#e8505b"/>
+    <path d="M18 40 Q50 20 82 40 M14 55 Q50 32 86 55 M20 70 Q50 48 80 70 M40 12 Q30 50 44 88 M60 12 Q74 50 58 88" stroke="#b5303a" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <circle cx="50" cy="50" r="40" fill="none" stroke="#8a1f28" stroke-width="3"/>
+  </svg>
+  <p id="loading-text">Loading…</p>
+  <small id="loading-sub"></small>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+<div class="modal" id="modal-settings" hidden>
+  <div class="paper-card modal-card">
+    <button class="close-x" data-close>✕</button>
+    <h2>Settings</h2>
+    <div class="toggle-row">
+      <span>🔊 Sound effects</span>
+      <button class="toggle" id="tg-sound" role="switch" aria-checked="true"><i></i></button>
+    </div>
+    <div class="toggle-row">
+      <span>📏 Units</span>
+      <div class="seg" id="seg-units">
+        <button data-units="imperial">feet / miles</button>
+        <button data-units="metric">meters / km</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="big-btn" id="btn-save-settings">Save</button>
+      <button class="big-btn ghost danger" id="btn-reset">Reset progress</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-howto" hidden>
+  <div class="paper-card modal-card">
+    <button class="close-x" data-close>✕</button>
+    <h2>How to play</h2>
+    <ol class="howto">
+      <li><span>👀</span><div><b>Look around.</b> You're dropped somewhere on or near the UC Berkeley campus. Drag to look and click the arrows to walk.</div></li>
+      <li><span>🗺️</span><div><b>Open the map.</b> Hover the map in the corner (or tap <em>Map</em> on mobile) to make it bigger, then click where you think you are.</div></li>
+      <li><span>📍</span><div><b>Lock it in.</b> Press <em>Guess!</em> (or Space). The closer you are, the more points, up to 5,000 per spot.</div></li>
+      <li><span>📒</span><div><b>Collect stickers.</b> Score 2,500+ on a landmark to add it to your Sticker Book.</div></li>
+    </ol>
+    <div class="howto-modes">
+      <div><b>🔔 Campus Classic</b> Famous landmarks, 5 rounds, no rush.</div>
+      <div><b>🧭 Wander Mode</b> Random streets around campus. Tougher!</div>
+      <div><b>⏱️ Bear Sprint</b> Landmarks against a 45-second clock.</div>
+      <div><b>📅 Daily Stroll</b> The same 5 spots for everyone today. Share your score!</div>
+    </div>
+    <p class="keys">Keys: <kbd>Space</kbd> guess / next · <kbd>R</kbd> back to start · <kbd>H</kbd> hint · <kbd>M</kbd> toggle map</p>
+  </div>
+</div>
+
+<div class="modal" id="modal-stickers" hidden>
+  <div class="paper-card modal-card wide">
+    <button class="close-x" data-close>✕</button>
+    <h2>Sticker Book <small id="sticker-count"></small></h2>
+    <p class="sticker-help">Score 2,500+ points on a landmark to stick it in your book.</p>
+    <div class="sticker-grid" id="sticker-grid"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<div id="confetti" aria-hidden="true"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/locations.js"></script>
+<script src="js/panos.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
