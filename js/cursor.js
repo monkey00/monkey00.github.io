@@ -17,7 +17,7 @@ if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
     const el = e.target instanceof Element ? e.target : null;
     // Inside an embedded page the browser's own cursor takes over.
     show(!(el && el.tagName === 'IFRAME'));
-    ring.classList.toggle('on', !!(el && el.closest('a, button, [role="button"], .card, canvas.clickable')));
+    ring.classList.toggle('on', !!(el && el.closest('a, button, [role="button"], .card, canvas.clickable')) || document.body.classList.contains('over-suit'));
   }, { passive: true });
   window.addEventListener('pointerdown', () => ring.classList.add('down'));
   window.addEventListener('pointerup', () => ring.classList.remove('down'));

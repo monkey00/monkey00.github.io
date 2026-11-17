@@ -30,10 +30,11 @@ export default function startGame() {
   const root = document.createElement('div');
   root.className = 'game';
   root.hidden = true;
-  root.innerHTML = '<canvas aria-hidden="true"></canvas><p class="game-say" aria-live="polite"></p>';
+  root.innerHTML = '<canvas aria-hidden="true"></canvas><p class="game-say" aria-live="polite"></p><button class="game-leave">Back to the site <kbd>esc</kbd></button>';
   $('#home').append(root);
   const canvas = root.querySelector('canvas'), ctx = canvas.getContext('2d');
   const say = root.querySelector('.game-say');
+  root.querySelector('.game-leave').addEventListener('click', () => stop());
 
   let W = 0, H = 0, dpr = 1, diag = 1;
   const resize = () => {
@@ -96,6 +97,7 @@ export default function startGame() {
   $('.top > span').append(toggle);
   toggle.addEventListener('click', () => (on ? stop() : start()));
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && on) stop(); });
+  window.addEventListener('suit-click', () => { if (!on) start(); });
 
   /* ---------- state ---------- */
   let on = false, leaving = null, phase = 'off', t0 = 0, fallback = 0;
@@ -212,7 +214,7 @@ export default function startGame() {
     const r = 17 + Math.random() * 6;
     for (let tries = 0; tries < 20; tries++) {
       const x = 40 + r + Math.random() * (W - 2 * r - 80);
-      const y = 100 + r + Math.random() * (H - 2 * r - 150);
+      const y = 100 + r + Math.random() * (H - 2 * r - 220);
       if (targets.some((t) => Math.hypot(t.x - x, t.y - y) < t.r + r + 60)) continue;
       targets.push({ x, y, r, born: now, life: Math.max(650, (2200 + Math.random() * 900) * 0.93 ** hits), hot: 0 });
       return;
@@ -235,7 +237,7 @@ export default function startGame() {
 
   window.addEventListener('pointermove', (e) => { mx = e.clientX; my = e.clientY; }, { passive: true });
   root.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || !on) return;
+    if (e.button !== 0 || !on || e.target.closest('button')) return;
     if (phase === 'play') hit(e.clientX, e.clientY);
     else if (phase === 'intro') tryOut(e.clientX, e.clientY);
   });

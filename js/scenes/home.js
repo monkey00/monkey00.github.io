@@ -34,6 +34,25 @@ export default function mount(canvas) {
     else { shakeAt = -1; if (gone) { gone = false; grow = 0; st.setPaused(false); } }
   };
   window.addEventListener('game', onGame);
+
+  // The suit can be clicked too (on a computer): it starts the same hidden game as the dot.
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const overSuit = (e) => {
+    if (gone || shakeAt >= 0 || !holder.visible || st.size.w <= 760) return false;
+    if (e.target instanceof Element && e.target.closest('button, a, .card, .game')) return false;
+    ndc.set((e.clientX / st.size.w) * 2 - 1, -(e.clientY / st.size.h) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    return ray.intersectObject(holder, true).length > 0;
+  };
+  const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const onMove = (e) => { if (fine) document.body.classList.toggle('over-suit', overSuit(e)); };
+  const onClick = (e) => {
+    if (!fine || e.button !== 0 || document.body.classList.contains('game-on') || !overSuit(e)) return;
+    document.body.classList.remove('over-suit');
+    window.dispatchEvent(new Event('suit-click'));
+  };
+  window.addEventListener('pointermove', onMove, { passive: true });
+  window.addEventListener('click', onClick);
   const burst = () => {
     const v = holder.position.clone().project(camera);
     const hh = Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
@@ -71,5 +90,5 @@ export default function mount(canvas) {
     }
     holder.rotation.set(Math.sin(t * 0.37) * 0.14 - py * 0.25, Math.sin(t * 0.45) * 0.75 + px * 0.5, Math.sin(t * 0.3) * 0.06);
   });
-  return () => { window.removeEventListener('game', onGame); window.removeEventListener('hero', onHero); window.removeEventListener('detail', onDetail); st.dispose(); };
+  return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('click', onClick); window.removeEventListener('game', onGame); window.removeEventListener('hero', onHero); window.removeEventListener('detail', onDetail); st.dispose(); };
 }
