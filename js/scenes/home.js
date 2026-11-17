@@ -27,8 +27,24 @@ export default function mount(canvas) {
   window.addEventListener('hero', onHero);
   window.addEventListener('detail', onDetail);
 
+  // The hidden game: the suit shakes, then bursts (game.js draws the pieces), and later grows back.
+  let shakeAt = -1, gone = false, goneFrames = 0;
+  const onGame = (e) => {
+    if (e.detail === 'explode') { if (!gone) shakeAt = performance.now(); }
+    else { shakeAt = -1; if (gone) { gone = false; grow = 0; st.setPaused(false); } }
+  };
+  window.addEventListener('game', onGame);
+  const burst = () => {
+    const v = holder.position.clone().project(camera);
+    const hh = Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
+    window.dispatchEvent(new CustomEvent('suit-burst', { detail: {
+      x: ((v.x + 1) / 2) * st.size.w, y: ((1 - v.y) / 2) * st.size.h, r: holder.scale.x * (st.size.h / (2 * hh)),
+    } }));
+  };
+
   let px = 0, py = 0;
   st.onFrame((t, dt) => {
+    if (gone) { holder.visible = false; if (++goneFrames > 2) st.setPaused(true); return; }
     const hh = Math.tan((camera.fov * Math.PI) / 360) * camera.position.z, hw = hh * camera.aspect;
     const narrow = st.size.w <= 760;
     px += (pointer.x - px) * 0.035; py += (pointer.y - py) * 0.035;
@@ -43,7 +59,17 @@ export default function mount(canvas) {
     const scrolled = narrow && page ? (page.scrollTop / st.size.h) * hh * 2 : 0;
     holder.position.set(narrow ? hw * 0.62 : hw * 0.5, (narrow ? hh * 0.73 : hh * 0.34) + scrolled + Math.sin(t * 0.8) * 0.08, 0);
     holder.visible = scrolled < hh;
+
+    if (shakeAt >= 0) {
+      const k = (performance.now() - shakeAt) / 700;
+      if (k >= 1) { burst(); shakeAt = -1; gone = true; goneFrames = 0; holder.visible = false; return; }
+      const amp = k ** 1.5 * size * 0.09;
+      holder.position.x += (Math.random() - 0.5) * amp;
+      holder.position.y += (Math.random() - 0.5) * amp;
+      holder.rotation.z += (Math.random() - 0.5) * k * 0.5;
+      holder.scale.multiplyScalar(1 + k * 0.12);
+    }
     holder.rotation.set(Math.sin(t * 0.37) * 0.14 - py * 0.25, Math.sin(t * 0.45) * 0.75 + px * 0.5, Math.sin(t * 0.3) * 0.06);
   });
-  return () => { window.removeEventListener('hero', onHero); window.removeEventListener('detail', onDetail); st.dispose(); };
+  return () => { window.removeEventListener('game', onGame); window.removeEventListener('hero', onHero); window.removeEventListener('detail', onDetail); st.dispose(); };
 }
