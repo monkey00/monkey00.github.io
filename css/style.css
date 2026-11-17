@@ -50,9 +50,15 @@ a { color: inherit; }
 .top .secret { width: 7px; height: 7px; margin-left: 10px; border-radius: 50%; vertical-align: 1px; box-shadow: inset 0 0 0 1px currentColor; opacity: .45; transition: opacity .3s, background .3s; }
 .top .secret:hover { opacity: .9; }
 .top .secret.on { background: var(--ink); opacity: .7; }
-.top .score { display: inline-block; font-family: var(--mono); font-size: 12px; color: var(--soft); }
-.top .score.bump { animation: bump .5s var(--ease); }
-@keyframes bump { 40% { color: var(--ink); transform: translateY(-2px); } }
+.top .score {
+  position: absolute; left: 50%; top: 0; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; font-family: var(--mono); font-size: 12px; line-height: 1.2;
+}
+.top .score b, .top .score .ghost { font-weight: 400; color: var(--soft); white-space: nowrap; }
+.top .score i { font-style: normal; color: var(--red); white-space: nowrap; transition: opacity .2s; }
+.top .score .ghost { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
+.top .score .bump { animation: bump .5s var(--ease); }
+@keyframes bump { 40% { color: var(--ink); } }
 .grain {
   position: fixed; inset: 0; z-index: 50; pointer-events: none; opacity: .05; mix-blend-mode: overlay;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");

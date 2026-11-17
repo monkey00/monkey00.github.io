@@ -1,6 +1,8 @@
 // A quiet game hiding in the background, off until someone finds the little dot in the header.
 // Once it is on, thin rings like the cursor's pop up around the home screen for a couple of
 // seconds each. Click one before it goes and you score by how close to its centre you hit: 10, 5, 3 or 1.
+// Every ring you hit makes the next ones last a little less long.
+// Let one get away and the score goes back to zero. The best run sits underneath in red.
 // Desktop only (a real mouse and a wide screen), and never while a card is open.
 
 const RINGS = [10, 5, 3, 1];          // points, from the centre out
@@ -19,8 +21,42 @@ export default function startTargets() {
   const score = document.createElement('span');
   score.className = 'score';
   score.hidden = true;
+  score.innerHTML = '<b></b><i></i>';
+  const nowEl = score.firstChild, bestEl = score.lastChild;
   document.querySelector('.top').insertBefore(score, document.getElementById('clock'));
-  let total = 0, enabled = false;
+  let total = 0, best = 0, hits = 0, enabled = false;
+  try { best = +localStorage.getItem('targets-best') || 0; } catch {}
+  const paint = () => { nowEl.textContent = `${total} pts`; bestEl.textContent = best ? `best ${best}` : ''; };
+  paint();
+
+  // A target got away: back to zero. If this run was the best yet, it slides down into the red line.
+  function miss() {
+    hits = 0;
+    if (!total) return;
+    const ran = total;
+    total = 0;
+    if (ran > best) {
+      best = ran;
+      try { localStorage.setItem('targets-best', String(best)); } catch {}
+      if (!calm) {
+        const ghost = nowEl.cloneNode(true);
+        ghost.className = 'ghost';
+        score.append(ghost);
+        const drop = bestEl.offsetTop - nowEl.offsetTop;
+        bestEl.style.opacity = '0';
+        ghost.animate(
+          [{ transform: 'translate(-50%, 0)', color: '#B7B8BF' }, { transform: `translate(-50%, ${drop}px)`, color: '#FF4B55' }],
+          { duration: 650, easing: 'cubic-bezier(.65,0,.2,1)' },
+        ).onfinish = () => { ghost.remove(); bestEl.style.opacity = ''; paint(); };
+        nowEl.textContent = '0 pts';
+        nowEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay: 250, fill: 'backwards' });
+        return;
+      }
+    } else if (!calm) {
+      nowEl.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 400 });
+    }
+    paint();
+  }
 
   // The switch: an unlabelled dot next to the site name. Hollow when off, filled when on.
   const toggle = document.createElement('button');
@@ -33,8 +69,8 @@ export default function startTargets() {
     toggle.classList.toggle('on', enabled);
     toggle.setAttribute('aria-pressed', String(enabled));
     if (enabled) nextAt = performance.now() + 500;
-    else { targets.length = 0; score.hidden = true; }
-    if (enabled && total) score.hidden = false;
+    else targets.length = 0;
+    score.hidden = !enabled;
   });
 
   const ring = () => document.querySelector('.cur-ring');
@@ -61,7 +97,7 @@ export default function startTargets() {
       if (x > box.left - r - 30 && x < box.right + r + 30 && y > box.top - r - 30 && y < box.bottom + r + 30) continue;
       if (targets.some((t) => Math.hypot(t.x - x, t.y - y) < t.r + r + 60)) continue;
       const a = 0, v = 0;
-      targets.push({ x, y, r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, born: now, life: 2200 + Math.random() * 900, hot: 0 });
+      targets.push({ x, y, r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, born: now, life: Math.max(650, (2200 + Math.random() * 900) * 0.93 ** hits), hot: 0 });
       return;
     }
   }
@@ -74,10 +110,9 @@ export default function startTargets() {
       const pts = RINGS[Math.min(RINGS.length - 1, Math.floor((Math.min(d, t.r - 0.01) / t.r) * RINGS.length))];
       targets.splice(i, 1);
       pops.push({ x: t.x, y: t.y, r: t.r, px: x, py: y, pts, born: performance.now() });
-      total += pts;
-      score.hidden = false;
-      score.textContent = `${total} pts`;
-      score.classList.remove('bump'); void score.offsetWidth; score.classList.add('bump');
+      total += pts; hits++;
+      paint();
+      nowEl.classList.remove('bump'); void nowEl.offsetWidth; nowEl.classList.add('bump');
       return true;
     }
     return false;
@@ -98,14 +133,14 @@ export default function startTargets() {
     if (document.hidden) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    if (!live()) { setAim(null); return; }
+    if (!live()) { setAim(null); targets.length = 0; return; }
 
     if (targets.length < MAX && now > nextAt) { spawn(now); nextAt = now + 900 + Math.random() * 2200; }
 
     let over = null;
     for (let i = targets.length - 1; i >= 0; i--) {
       const t = targets[i], age = now - t.born;
-      if (age > t.life) { targets.splice(i, 1); continue; }
+      if (age > t.life) { targets.splice(i, 1); miss(); continue; }
       t.x += t.vx * dt; t.y += t.vy * dt;
       if (t.x < t.r || t.x > W - t.r) t.vx *= -1;
       if (t.y < 70 + t.r || t.y > H * 0.66) t.vy *= -1;
