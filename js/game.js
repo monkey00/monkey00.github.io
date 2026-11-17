@@ -55,8 +55,12 @@ export default function startGame() {
   paint();
 
   // A ring got away: back to zero. If this run was the best yet, it slides down into the red line.
+  const REST = 3400;
   function miss() {
     hits = 0;
+    targets.length = 0;
+    restUntil = performance.now() + REST;
+    nextAt = restUntil + 300;
     if (!total) return;
     const ran = total;
     total = 0;
@@ -95,17 +99,18 @@ export default function startGame() {
   /* ---------- state ---------- */
   let on = false, leaving = null, phase = 'off', t0 = 0, fallback = 0;
   let intro = [], targets = [], pops = [], stars = [];
-  let nextAt = 0, mx = -1e4, my = -1e4;
+  let nextAt = 0, restUntil = 0, mx = -1e4, my = -1e4;
 
   function setPhase(p) { phase = p; t0 = performance.now(); }
 
   function start() {
     if (!detail.hidden || W <= 760) return;
-    if (leaving) { leaving.cancel(); leaving = null; }
+    // Drop the exit animation completely, or its last frame (clipped to nothing) would stay applied.
+    root.getAnimations().forEach((a) => a.cancel()); leaving = null;
     on = true;
     toggle.classList.add('on'); toggle.setAttribute('aria-pressed', 'true');
     document.body.classList.add('game-on');
-    root.hidden = false; root.style.clipPath = '';
+    root.hidden = false; root.style.clipPath = ''; restUntil = 0;
     say.style.opacity = 0; count.style.opacity = 0;
     intro = []; targets = []; pops = [];
     total = 0; hits = 0; paint(); score.hidden = true;
@@ -149,7 +154,7 @@ export default function startGame() {
       { duration: calm ? 1 : 850, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'forwards' },
     );
     leaving.onfinish = () => {
-      leaving = null; root.hidden = true; phase = 'off';
+      leaving.cancel(); leaving = null; root.hidden = true; root.style.clipPath = 'circle(0px)'; phase = 'off'; restUntil = 0;
       intro = []; targets = []; pops = [];
       say.style.opacity = 0; count.style.opacity = 0;
     };
@@ -199,7 +204,25 @@ export default function startGame() {
   }
 
   window.addEventListener('pointermove', (e) => { mx = e.clientX; my = e.clientY; }, { passive: true });
-  root.addEventListener('pointerdown', (e) => { if (e.button === 0 && on && phase === 'play') hit(e.clientX, e.clientY); });
+  root.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || !on) return;
+    if (phase === 'play') hit(e.clientX, e.clientY);
+    else if (phase === 'intro') tryOut(e.clientX, e.clientY);
+  });
+
+  // Before the game starts the little rings are practice: they show what a click would score.
+  function tryOut(x, y) {
+    if (performance.now() - t0 > POP_FROM) return;
+    for (const p of intro) {
+      if (p.x === undefined) continue;
+      const d = Math.hypot(x - p.x, y - p.y);
+      if (d > p.r + 5) continue;
+      const pts = RINGS[Math.min(RINGS.length - 1, Math.floor((Math.min(d, p.r - 0.01) / p.r) * RINGS.length))];
+      pops = pops.filter((q) => q.ring !== p);
+      pops.push({ ring: p, x: p.x, y: p.y, r: p.r, px: x, py: y, pts, born: performance.now() });
+      return;
+    }
+  }
 
   // Just a thin ring, the same as the cursor's, with a red hairline that runs down with its time.
   function drawTarget(t, fade, age) {
@@ -235,13 +258,18 @@ export default function startGame() {
       if (e < SAY2[0]) { say.textContent = 'click as many targets as you can'; say.style.opacity = f(...SAY1); }
       else { say.textContent = 'the closer to the center the more points'; say.style.opacity = f(...SAY2); }
 
+      let over = false;
       for (const p of intro) {
         const k = easeOut(clamp01(e / p.fly));
         const x = p.sx + (p.hx - p.sx) * k + Math.sin(now / 1100 + p.wob) * 6 * k;
         const y = p.sy + (p.hy - p.sy) * k + Math.cos(now / 1300 + p.wob) * 6 * k;
+        p.x = x; p.y = y;
         if (e < p.popAt) {
+          const near = Math.hypot(mx - x, my - y) < p.r + 5;
+          p.hot = (p.hot || 0) + ((near ? 1 : 0) - (p.hot || 0)) * 0.15;
+          over = over || near;
           ctx.lineWidth = 1;
-          ctx.strokeStyle = `rgba(242,241,237,${0.75 * clamp01(e / 120)})`;
+          ctx.strokeStyle = `rgba(242,241,237,${(0.7 + 0.3 * p.hot) * clamp01(e / 120)})`;
           ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI * 2); ctx.stroke();
         } else {
           const g = easeOut(clamp01((e - p.popAt) / POP_GROW));
@@ -252,7 +280,9 @@ export default function startGame() {
       // make sure nothing peeks through at the end
       const wash = clamp01((e - (WHITE_AT - 600)) / 600);
       if (wash > 0) { ctx.fillStyle = `rgba(244,243,239,${wash})`; ctx.fillRect(0, 0, W, H); }
-      if (e >= WHITE_AT) { say.style.opacity = 0; setPhase('count'); }
+      setAim(on && over && e < POP_FROM);
+      drawPops(now, e < POP_FROM ? 1 : clamp01(1 - (e - POP_FROM) / 400));
+      if (e >= WHITE_AT) { say.style.opacity = 0; pops = []; setAim(false); setPhase('count'); }
       return;
     }
 
@@ -288,25 +318,35 @@ export default function startGame() {
 
     // play
     drawSpace(now, dt);
-    if (on && targets.length < MAX && now > nextAt) { spawn(now); nextAt = now + 700 + Math.random() * 1800 * 0.95 ** hits; }
+    if (now < restUntil) {
+      const left = restUntil - now, gone = REST - left;
+      say.textContent = gone < 1300 ? 'missed one' : `again in ${Math.ceil(left / 700)}`;
+      say.style.opacity = clamp01(gone / 250) * clamp01(left / 250);
+    } else if (restUntil) { say.style.opacity = 0; restUntil = 0; }
+    if (on && !restUntil && targets.length < MAX && now > nextAt) { spawn(now); nextAt = now + 700 + Math.random() * 1800 * 0.95 ** hits; }
     let over = false;
     for (let i = targets.length - 1; i >= 0; i--) {
       const t = targets[i], age = now - t.born;
-      if (age > t.life) { targets.splice(i, 1); if (on) miss(); continue; }
+      if (age > t.life) { targets.splice(i, 1); if (on) { miss(); break; } continue; }
       const near = Math.hypot(mx - t.x, my - t.y) < t.r + 5;
       if (near) over = true;
       t.hot += ((near ? 1 : 0) - t.hot) * 0.12;
       drawTarget(t, Math.min(1, age / 160, (t.life - age) / 350), age);
     }
     setAim(on && over);
+    drawPops(now, 1);
+  }
+
+  // The little ring that spreads out and the "+N" that floats up after a hit.
+  function drawPops(now, alpha) {
     for (let i = pops.length - 1; i >= 0; i--) {
       const p = pops[i], k = (now - p.born) / 900;
       if (k >= 1) { pops.splice(i, 1); continue; }
-      const g = easeOut(k);
+      const g = easeOut(k), a = alpha * (1 - k);
       ctx.lineWidth = 1;
-      ctx.strokeStyle = `rgba(242,241,237,${0.4 * (1 - k)})`;
+      ctx.strokeStyle = `rgba(242,241,237,${0.4 * a})`;
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + g * 0.9), 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = p.pts === 10 ? `rgba(255,75,85,${1 - k})` : `rgba(242,241,237,${0.85 * (1 - k)})`;
+      ctx.fillStyle = p.pts === 10 ? `rgba(255,75,85,${a})` : `rgba(242,241,237,${0.85 * a})`;
       ctx.font = '500 12px "Geist Mono", ui-monospace, monospace';
       ctx.textAlign = 'center';
       ctx.fillText(`+${p.pts}`, p.px, p.py - 14 - g * 22);
