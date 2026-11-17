@@ -10,10 +10,15 @@ export default function mount(canvas) {
   const cool = new THREE.PointLight(0x6d8bff, 60, 30); cool.position.set(4, -2, 5);
   scene.add(warm, cool);
 
-  const mat = chrome(0xe9ebf2);
+  // Spades and clubs are pearl white; hearts and diamonds are a glossy red.
+  const pearl = chrome(0xe9ebf2);
+  const ruby = chrome(0xff3a46, { metalness: 0.25, iridescence: 0.25, envMapIntensity: 1.2 });
   const holder = new THREE.Group(); scene.add(holder);
   const solids = {};
-  for (const k of ['s', 'h', 'd', 'c']) { solids[k] = suitSolid(k, mat); solids[k].visible = false; holder.add(solids[k]); }
+  for (const k of ['s', 'h', 'd', 'c']) { solids[k] = suitSolid(k, k === 'h' || k === 'd' ? ruby : pearl); solids[k].visible = false; holder.add(solids[k]); }
+
+  // On phones the page scrolls, so the suit scrolls with it instead of floating over the cards.
+  const page = document.getElementById('home');
 
   let shown = 's', want = 's', grow = 0;
   solids.s.visible = true;
@@ -35,7 +40,9 @@ export default function mount(canvas) {
 
     const size = narrow ? hw * 0.24 : Math.min(hh * 0.3, hw * 0.24);
     holder.scale.setScalar(size * (0.001 + grow));
-    holder.position.set(narrow ? hw * 0.62 : hw * 0.5, (narrow ? hh * 0.73 : hh * 0.34) + Math.sin(t * 0.8) * 0.08, 0);
+    const scrolled = narrow && page ? (page.scrollTop / st.size.h) * hh * 2 : 0;
+    holder.position.set(narrow ? hw * 0.62 : hw * 0.5, (narrow ? hh * 0.73 : hh * 0.34) + scrolled + Math.sin(t * 0.8) * 0.08, 0);
+    holder.visible = scrolled < hh;
     holder.rotation.set(Math.sin(t * 0.37) * 0.14 - py * 0.25, Math.sin(t * 0.45) * 0.75 + px * 0.5, Math.sin(t * 0.3) * 0.06);
   });
   return () => { window.removeEventListener('hero', onHero); window.removeEventListener('detail', onDetail); st.dispose(); };
