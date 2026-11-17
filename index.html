@@ -1,10 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>My Website</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aadit Rana</title>
+  <meta name="description" content="Aadit Rana. Student at UC Berkeley, CS and Econ. Product and building.">
+  <meta name="theme-color" content="#09090B">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%2309090B'/><text x='50' y='72' font-size='64' text-anchor='middle' fill='%23F2F1ED'>♠</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..800&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    } }
+  </script>
 </head>
 <body>
-    <h1>Hello, world!</h1>
-    <p>Welcome to my site.</p>
+  <div class="glow" aria-hidden="true"></div>
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+
+  <main id="home">
+    <header class="top">
+      <span>aaditrana.me</span>
+      <span id="clock">Berkeley, CA</span>
+    </header>
+
+    <section class="intro" id="intro">
+      <h1>Aadit Rana</h1>
+      <p>Student at UC Berkeley, CS and Econ.<br>Product and building.</p>
+      <nav class="nav" aria-label="Filter the cards">
+        <button class="chip suit" data-suit="s"><i>♠</i>Builds</button>
+        <button class="chip suit red" data-suit="d"><i>♦</i>Work</button>
+        <button class="chip suit red" data-suit="h"><i>♥</i>Loves</button>
+        <button class="chip suit" data-suit="c"><i>♣</i>Me</button>
+        <button class="chip ghost" id="btn-hand">Play a hand</button>
+      </nav>
+      <p class="hand-hint" id="hand-hint" hidden></p>
+    </section>
+
+    <section class="verdict" id="verdict" hidden>
+      <div class="v-kick">Your hand</div>
+      <h2 class="v-name" id="verdict-name"></h2>
+      <p class="v-line" id="verdict-line"></p>
+      <button class="chip" id="verdict-close">Play again</button>
+    </section>
+
+    <div id="fan" aria-label="A hand of cards. Each one is a project, a job or something I love."></div>
+  </main>
+
+  <section id="detail" class="detail" hidden aria-modal="true" role="dialog">
+    <div id="stage" class="stage"></div>
+    <div class="detail-chrome">
+      <button class="chip" id="d-close">← Back</button>
+      <div class="d-nav chip">
+        <button id="d-prev" aria-label="Previous card">←</button>
+        <span id="d-count"></span>
+        <button id="d-next" aria-label="Next card">→</button>
+      </div>
+    </div>
+    <article id="panel" class="panel"></article>
+  </section>
+
+  <noscript><p style="padding:2rem;color:#f2f1ed">Aadit Rana. Student at UC Berkeley, CS and Econ. This site needs JavaScript to show the cards.</p></noscript>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
