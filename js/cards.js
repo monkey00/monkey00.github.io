@@ -36,7 +36,7 @@ export const CARDS = [
     facts: [
       ['IDEA', 'Computer vision follows the ball, detects bounces, works out who lost the rally and runs the serve rotation.'],
       ['RULE', 'Nobody types the score. Try clicking it.'],
-      ['STATUS', 'The interface is done. The ball tracking is still a work in progress, and I am fine admitting that.'],
+      ['STATUS', 'The interface is done. The ball tracking is still a work in progress.'],
     ],
     links: [],
     note: 'The rally on screen is simulated.',
