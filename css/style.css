@@ -47,6 +47,9 @@ a { color: inherit; }
 @keyframes breathe { to { transform: translate3d(3%, -3%, 0) scale(1.08); } }
 #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; pointer-events: none; }
 .targets { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.top .secret { width: 7px; height: 7px; margin-left: 10px; border-radius: 50%; vertical-align: 1px; box-shadow: inset 0 0 0 1px currentColor; opacity: .45; transition: opacity .3s, background .3s; }
+.top .secret:hover { opacity: .9; }
+.top .secret.on { background: var(--ink); opacity: .7; }
 .top .score { display: inline-block; font-family: var(--mono); font-size: 12px; color: var(--soft); }
 .top .score.bump { animation: bump .5s var(--ease); }
 @keyframes bump { 40% { color: var(--ink); transform: translateY(-2px); } }

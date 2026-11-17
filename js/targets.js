@@ -1,5 +1,6 @@
-// A quiet game hiding in the background: a few faint targets drift around the home screen.
-// Click one and you score by ring, from 1 on the outside to 10 for the bullseye.
+// A quiet game hiding in the background, off until someone finds the little dot in the header.
+// Once it is on, a few soft glowing orbs drift around the home screen. Click one and you score
+// by how close to its centre you hit: 10, 5, 3 or 1.
 // Desktop only (a real mouse and a wide screen), and never while a card is open.
 
 const RINGS = [10, 5, 3, 1];          // points, from the centre out
@@ -19,7 +20,22 @@ export default function startTargets() {
   score.className = 'score';
   score.hidden = true;
   document.querySelector('.top').insertBefore(score, document.getElementById('clock'));
-  let total = 0;
+  let total = 0, enabled = false;
+
+  // The switch: an unlabelled dot next to the site name. Hollow when off, filled when on.
+  const toggle = document.createElement('button');
+  toggle.className = 'secret';
+  toggle.setAttribute('aria-label', 'Something in the background');
+  toggle.setAttribute('aria-pressed', 'false');
+  document.querySelector('.top > span').append(toggle);
+  toggle.addEventListener('click', () => {
+    enabled = !enabled;
+    toggle.classList.toggle('on', enabled);
+    toggle.setAttribute('aria-pressed', String(enabled));
+    if (enabled) nextAt = performance.now() + 500;
+    else { targets.length = 0; score.hidden = true; }
+    if (enabled && total) score.hidden = false;
+  });
 
   const ring = () => document.querySelector('.cur-ring');
   const detail = document.getElementById('detail');
@@ -37,7 +53,7 @@ export default function startTargets() {
 
   // Somewhere open: above the cards and clear of the name and buttons.
   function spawn(now) {
-    const r = 26 + Math.random() * 18;
+    const r = 30 + Math.random() * 16;
     const box = intro.getBoundingClientRect();
     for (let tries = 0; tries < 20; tries++) {
       const x = r + 30 + Math.random() * (W - 2 * r - 60);
@@ -50,7 +66,7 @@ export default function startTargets() {
     }
   }
 
-  const live = () => detail.hidden && W > 760;
+  const live = () => enabled && detail.hidden && W > 760;
   function hit(x, y) {
     for (let i = targets.length - 1; i >= 0; i--) {
       const t = targets[i], d = Math.hypot(x - t.x, y - t.y);
@@ -115,15 +131,18 @@ export default function startTargets() {
     }
   }
 
+  // A soft orb: a glow that fades out from the middle and one thin edge. No rings, no dots.
   function drawTarget(t, fade) {
-    const a = fade * (0.13 + t.hot * 0.17);
+    const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.r);
+    const a = fade * (0.16 + t.hot * 0.14);
+    g.addColorStop(0, `rgba(255,120,128,${a * 1.4})`);
+    g.addColorStop(0.45, `rgba(170,150,255,${a * 0.6})`);
+    g.addColorStop(1, 'rgba(120,130,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(242,241,237,${fade * (0.08 + t.hot * 0.16)})`;
     ctx.lineWidth = 1;
-    for (let k = RINGS.length; k >= 1; k--) {
-      ctx.strokeStyle = `rgba(242,241,237,${a})`;
-      ctx.beginPath(); ctx.arc(t.x, t.y, (t.r * k) / RINGS.length, 0, Math.PI * 2); ctx.stroke();
-    }
-    ctx.fillStyle = `rgba(255,75,85,${fade * (0.28 + t.hot * 0.3)})`;
-    ctx.beginPath(); ctx.arc(t.x, t.y, t.r / RINGS.length / 1.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2); ctx.stroke();
   }
 
   let aimed = false;
