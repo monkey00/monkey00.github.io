@@ -1,10 +1,10 @@
 // A quiet game hiding in the background, off until someone finds the little dot in the header.
-// Once it is on, a few soft glowing orbs drift around the home screen. Click one and you score
-// by how close to its centre you hit: 10, 5, 3 or 1.
+// Once it is on, thin rings like the cursor's pop up around the home screen for a couple of
+// seconds each. Click one before it goes and you score by how close to its centre you hit: 10, 5, 3 or 1.
 // Desktop only (a real mouse and a wide screen), and never while a card is open.
 
 const RINGS = [10, 5, 3, 1];          // points, from the centre out
-const MAX = 3;
+const MAX = 2;
 
 export default function startTargets() {
   if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
@@ -53,15 +53,15 @@ export default function startTargets() {
 
   // Somewhere open: above the cards and clear of the name and buttons.
   function spawn(now) {
-    const r = 30 + Math.random() * 16;
+    const r = 17 + Math.random() * 6;
     const box = intro.getBoundingClientRect();
     for (let tries = 0; tries < 20; tries++) {
       const x = r + 30 + Math.random() * (W - 2 * r - 60);
       const y = 80 + r + Math.random() * Math.max(10, H * 0.62 - 80 - 2 * r);
       if (x > box.left - r - 30 && x < box.right + r + 30 && y > box.top - r - 30 && y < box.bottom + r + 30) continue;
       if (targets.some((t) => Math.hypot(t.x - x, t.y - y) < t.r + r + 60)) continue;
-      const a = Math.random() * Math.PI * 2, v = calm ? 0 : 5 + Math.random() * 7;
-      targets.push({ x, y, r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, born: now, life: 16000 + Math.random() * 10000, hot: 0 });
+      const a = 0, v = 0;
+      targets.push({ x, y, r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, born: now, life: 2200 + Math.random() * 900, hot: 0 });
       return;
     }
   }
@@ -70,8 +70,8 @@ export default function startTargets() {
   function hit(x, y) {
     for (let i = targets.length - 1; i >= 0; i--) {
       const t = targets[i], d = Math.hypot(x - t.x, y - t.y);
-      if (d > t.r) continue;
-      const pts = RINGS[Math.min(RINGS.length - 1, Math.floor((d / t.r) * RINGS.length))];
+      if (d > t.r + 5) continue;
+      const pts = RINGS[Math.min(RINGS.length - 1, Math.floor((Math.min(d, t.r - 0.01) / t.r) * RINGS.length))];
       targets.splice(i, 1);
       pops.push({ x: t.x, y: t.y, r: t.r, px: x, py: y, pts, born: performance.now() });
       total += pts;
@@ -100,7 +100,7 @@ export default function startTargets() {
     ctx.clearRect(0, 0, W, H);
     if (!live()) { setAim(null); return; }
 
-    if (targets.length < MAX && now > nextAt) { spawn(now); nextAt = now + 3000 + Math.random() * 5000; }
+    if (targets.length < MAX && now > nextAt) { spawn(now); nextAt = now + 900 + Math.random() * 2200; }
 
     let over = null;
     for (let i = targets.length - 1; i >= 0; i--) {
@@ -112,8 +112,8 @@ export default function startTargets() {
       const near = Math.hypot(mx - t.x, my - t.y) < t.r;
       if (near) over = t;
       t.hot += ((near ? 1 : 0) - t.hot) * 0.12;
-      const fade = Math.min(1, age / 1800, (t.life - age) / 1800);
-      drawTarget(t, fade);
+      const fade = Math.min(1, age / 160, (t.life - age) / 350);
+      drawTarget(t, fade, age);
     }
     setAim(over);
 
@@ -131,18 +131,16 @@ export default function startTargets() {
     }
   }
 
-  // A soft orb: a glow that fades out from the middle and one thin edge. No rings, no dots.
-  function drawTarget(t, fade) {
-    const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.r);
-    const a = fade * (0.16 + t.hot * 0.14);
-    g.addColorStop(0, `rgba(255,120,128,${a * 1.4})`);
-    g.addColorStop(0.45, `rgba(170,150,255,${a * 0.6})`);
-    g.addColorStop(1, 'rgba(120,130,255,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = `rgba(242,241,237,${fade * (0.08 + t.hot * 0.16)})`;
+  // Just a thin ring, the same as the cursor's. It pops in, then quietly runs out of time.
+  function drawTarget(t, fade, age) {
+    const grow = calm ? 1 : 1 - (1 - Math.min(1, age / 260)) ** 3;
+    const left = 1 - age / t.life;
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = `rgba(242,241,237,${fade * (0.5 + t.hot * 0.4)})`;
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r * (0.6 + 0.4 * grow), 0, Math.PI * 2); ctx.stroke();
+    // a hairline just outside it that shrinks away as the time runs down
+    ctx.strokeStyle = `rgba(255,75,85,${fade * 0.55})`;
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.r + 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); ctx.stroke();
   }
 
   let aimed = false;
