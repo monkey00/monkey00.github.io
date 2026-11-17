@@ -1,8 +1,8 @@
 // A small game hidden behind the dot next to the site name (desktop only).
 //
 // Press the dot: the big suit shakes and bursts into little rings, two lines of instructions
-// come and go, the rings pop into white splotches until the screen is white, a black 3, 2, 1
-// counts down and the 1 swells until everything is black and full of stars. Then rings pop up
+// come and go, the rings pop into tiny specks, the specks gather into a 3, then a 2, then a 1,
+// and the 1 blows apart into the stars the game is played on. Then rings pop up
 // for a moment each. Hit one before it goes and you score by how close to its centre you hit
 // (10, 5, 3 or 1). Every hit makes the next rings a little quicker. Miss one and the score goes
 // back to zero; the best run sits underneath in red. Press the dot again (or Esc) to leave.
@@ -12,11 +12,12 @@ const MAX = 2;                 // rings on screen at once while playing
 
 // The intro, in milliseconds from the moment the suit bursts.
 const SAY1 = [700, 2700], SAY2 = [2900, 4900];
-const POP_FROM = 5000, POP_SPREAD = 1500, POP_GROW = 900, WHITE_AT = 7300;
-const TICK = 750, SWELL = 850;
+const POP_FROM = 5000, POP_SPREAD = 1100, DARK = [4700, 6000], COUNT_AT = 6500;
+const SPECKS = 11;                          // specks per popped ring
+const DIGITS = [['3', 0], ['2', 1700], ['1', 2700]], BOOM_AT = 3700, BOOM = 1500;
 
 const easeOut = (k) => 1 - (1 - k) ** 3;
-const easeIn = (k) => k ** 3;
+const easeInOut = (k) => (k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2);
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 export default function startGame() {
@@ -29,10 +30,10 @@ export default function startGame() {
   const root = document.createElement('div');
   root.className = 'game';
   root.hidden = true;
-  root.innerHTML = '<canvas aria-hidden="true"></canvas><p class="game-say" aria-live="polite"></p><div class="game-count" aria-hidden="true"></div>';
+  root.innerHTML = '<canvas aria-hidden="true"></canvas><p class="game-say" aria-live="polite"></p>';
   $('#home').append(root);
   const canvas = root.querySelector('canvas'), ctx = canvas.getContext('2d');
-  const say = root.querySelector('.game-say'), count = root.querySelector('.game-count');
+  const say = root.querySelector('.game-say');
 
   let W = 0, H = 0, dpr = 1, diag = 1;
   const resize = () => {
@@ -98,7 +99,7 @@ export default function startGame() {
 
   /* ---------- state ---------- */
   let on = false, leaving = null, phase = 'off', t0 = 0, fallback = 0;
-  let intro = [], targets = [], pops = [], stars = [];
+  let intro = [], specks = [], targets = [], pops = [], stars = [], digit = -1, shock = 0;
   let nextAt = 0, restUntil = 0, mx = -1e4, my = -1e4;
 
   function setPhase(p) { phase = p; t0 = performance.now(); }
@@ -111,8 +112,8 @@ export default function startGame() {
     toggle.classList.add('on'); toggle.setAttribute('aria-pressed', 'true');
     document.body.classList.add('game-on');
     root.hidden = false; root.style.clipPath = ''; restUntil = 0;
-    say.style.opacity = 0; count.style.opacity = 0;
-    intro = []; targets = []; pops = [];
+    say.style.opacity = 0;
+    intro = []; specks = []; targets = []; pops = []; digit = -1;
     total = 0; hits = 0; paint(); score.hidden = true;
     setPhase('shake');
     window.dispatchEvent(new CustomEvent('game', { detail: 'explode' }));
@@ -134,7 +135,7 @@ export default function startGame() {
         sx: x + Math.cos(a) * d, sy: y + Math.sin(a) * d,
         hx: ((c + 0.15 + Math.random() * 0.7) / cols) * W, hy: ((w + 0.15 + Math.random() * 0.7) / rows) * H,
         r: 6 + Math.random() * 9, fly: 900 + Math.random() * 700, wob: Math.random() * 6.28,
-        popAt: POP_FROM + Math.random() * POP_SPREAD, big: diag * (0.17 + Math.random() * 0.1),
+        popAt: POP_FROM + Math.random() * POP_SPREAD,
       });
     }
   }
@@ -156,17 +157,46 @@ export default function startGame() {
     leaving.onfinish = () => {
       leaving.cancel(); leaving = null; root.hidden = true; root.style.clipPath = 'circle(0px)'; phase = 'off'; restUntil = 0;
       intro = []; targets = []; pops = [];
-      say.style.opacity = 0; count.style.opacity = 0;
+      say.style.opacity = 0;
     };
   }
 
-  /* ---------- stars for the backdrop ---------- */
-  function makeStars() {
-    stars = Array.from({ length: Math.round((W * H) / 5200) }, () => ({
-      x: Math.random() * W, y: Math.random() * H, s: 0.35 + Math.random() ** 3 * 1.1,
-      a: 0.15 + Math.random() * 0.55, tw: Math.random() * 6.28, v: 1 + Math.random() * 4,
-    }));
+  /* ---------- the countdown, drawn with specks ---------- */
+  // Every lit pixel (on a small grid) of a big serif digit, shuffled.
+  function digitPoints(ch) {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    const size = Math.min(H * 0.52, W * 0.42);
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `400 ${size}px "Instrument Serif", Georgia, serif`;
+    g.fillText(ch, W / 2, H / 2 + size * 0.05);
+    const d = g.getImageData(0, 0, W, H).data, pts = [];
+    for (let y = 0; y < H; y += 3) for (let x = 0; x < W; x += 3) if (d[(y * W + x) * 4 + 3] > 140) pts.push([x, y]);
+    for (let i = pts.length - 1; i > 0; i--) { const k = (Math.random() * (i + 1)) | 0; [pts[i], pts[k]] = [pts[k], pts[i]]; }
+    return pts;
   }
+  // Send every speck somewhere new, each leaving at a slightly different moment.
+  function sendTo(points, now, stagger, dur) {
+    specks.forEach((p, i) => {
+      p.fx = p.x; p.fy = p.y; p.fz = p.z;
+      [p.tx, p.ty] = points[i % points.length];
+      p.st = now + Math.random() * stagger; p.dur = dur * (0.85 + Math.random() * 0.3);
+    });
+  }
+  function moveSpecks(now, ease) {
+    for (const p of specks) {
+      const k = ease(clamp01((now - p.st) / p.dur));
+      p.x = p.fx + (p.tx - p.fx) * k; p.y = p.fy + (p.ty - p.fy) * k; p.k = k;
+    }
+  }
+  function drawSpecks(now, size, alpha) {
+    for (const p of specks) {
+      const sz = typeof size === 'function' ? size(p) : size, a = typeof alpha === 'function' ? alpha(p) : alpha;
+      ctx.fillStyle = `rgba(242,241,237,${a})`;
+      ctx.beginPath(); ctx.arc(p.x + Math.sin(now / 420 + p.tw) * 0.5, p.y + Math.cos(now / 380 + p.tw) * 0.5, sz, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
   function drawSpace(now, dt, alpha = 1) {
     ctx.fillStyle = '#060608'; ctx.fillRect(0, 0, W, H);
     for (const s of stars) {
@@ -258,6 +288,10 @@ export default function startGame() {
       if (e < SAY2[0]) { say.textContent = 'click as many targets as you can'; say.style.opacity = f(...SAY1); }
       else { say.textContent = 'the closer to the center the more points'; say.style.opacity = f(...SAY2); }
 
+      // the room goes dark while the rings pop
+      const dark = clamp01((e - DARK[0]) / (DARK[1] - DARK[0]));
+      if (dark > 0) { ctx.fillStyle = `rgba(6,6,8,${easeInOut(dark)})`; ctx.fillRect(0, 0, W, H); }
+
       let over = false;
       for (const p of intro) {
         const k = easeOut(clamp01(e / p.fly));
@@ -272,44 +306,66 @@ export default function startGame() {
           ctx.strokeStyle = `rgba(242,241,237,${(0.7 + 0.3 * p.hot) * clamp01(e / 120)})`;
           ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI * 2); ctx.stroke();
         } else {
-          const g = easeOut(clamp01((e - p.popAt) / POP_GROW));
-          ctx.fillStyle = '#F4F3EF';
-          ctx.beginPath(); ctx.arc(x, y, p.r + (p.big - p.r) * g, 0, Math.PI * 2); ctx.fill();
+          // pop: a quick flash of the ring, and a little spray of specks
+          if (!p.popped) {
+            p.popped = true;
+            for (let n = 0; n < SPECKS; n++) {
+              const a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 140;
+              specks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, tw: Math.random() * 6.28,
+                s: 0.35 + Math.random() ** 3 * 1.1, a: 0.15 + Math.random() * 0.55, v: 1 + Math.random() * 4 });
+            }
+          }
+          const f = clamp01((e - p.popAt) / 260);
+          if (f < 1) {
+            ctx.strokeStyle = `rgba(242,241,237,${0.8 * (1 - f)})`;
+            ctx.beginPath(); ctx.arc(x, y, p.r * (1 + f * 0.8), 0, Math.PI * 2); ctx.stroke();
+          }
         }
       }
-      // make sure nothing peeks through at the end
-      const wash = clamp01((e - (WHITE_AT - 600)) / 600);
-      if (wash > 0) { ctx.fillStyle = `rgba(244,243,239,${wash})`; ctx.fillRect(0, 0, W, H); }
+      const drag = Math.exp(-2.2 * dt);
+      for (const p of specks) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= drag; p.vy *= drag; }
+      drawSpecks(now, 1.1, 0.85);
       setAim(on && over && e < POP_FROM);
       drawPops(now, e < POP_FROM ? 1 : clamp01(1 - (e - POP_FROM) / 400));
-      if (e >= WHITE_AT) { say.style.opacity = 0; pops = []; setAim(false); setPhase('count'); }
+      if (e >= COUNT_AT) { say.style.opacity = 0; pops = []; setAim(false); setPhase('count'); }
       return;
     }
 
     if (phase === 'count') {
-      ctx.fillStyle = '#F4F3EF'; ctx.fillRect(0, 0, W, H);
-      const n = Math.floor(e / TICK);
-      if (n < 3) {
-        const k = (e % TICK) / TICK;
-        count.textContent = String(3 - n);
-        count.style.opacity = clamp01(k / 0.12) * (n < 2 ? clamp01((1 - k) / 0.15) : 1);
-        count.style.transform = `translate(-50%, -50%) scale(${1.12 - 0.12 * easeOut(Math.min(1, k * 2))})`;
-      } else { makeStars(); setPhase('swell'); }
+      ctx.fillStyle = '#060608'; ctx.fillRect(0, 0, W, H);
+      let want = 0;
+      DIGITS.forEach(([, at], i) => { if (e >= at) want = i; });
+      if (want !== digit) {
+        digit = want;
+        // the first gathering is slow enough to watch; the next ones snap over
+        sendTo(digitPoints(DIGITS[digit][0]), now, digit ? 220 : 600, digit ? 650 : 1000);
+      }
+      moveSpecks(now, easeInOut);
+      drawSpecks(now, 1.25, (p) => 0.55 + 0.4 * p.k);
+      if (e >= BOOM_AT) {
+        // the 1 blows apart: every speck flies out to its own place in the sky
+        const sky = specks.map(() => [Math.random() * W, Math.random() * H]);
+        sendTo(sky, now, 60, BOOM);
+        shock = now;
+        setPhase('boom');
+      }
       return;
     }
 
-    if (phase === 'swell') {
-      // the 1 grows until it swallows the screen, and space shows through it
-      const k = clamp01(e / SWELL), g = easeIn(k);
-      ctx.fillStyle = '#F4F3EF'; ctx.fillRect(0, 0, W, H);
-      ctx.save();
-      ctx.beginPath(); ctx.arc(W / 2, H / 2, diag * 0.62 * g, 0, Math.PI * 2); ctx.clip();
-      drawSpace(now, dt, g);
-      ctx.restore();
-      count.style.transform = `translate(-50%, -50%) scale(${1 + 70 * g})`;
-      count.style.opacity = 1 - clamp01((k - 0.75) / 0.25);
-      if (k >= 1) {
-        count.style.opacity = 0;
+    if (phase === 'boom') {
+      ctx.fillStyle = '#060608'; ctx.fillRect(0, 0, W, H);
+      // a faint shockwave so the burst reads clearly
+      const sk = clamp01((now - shock) / 900);
+      if (sk < 1) {
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = `rgba(242,241,237,${0.35 * (1 - sk)})`;
+        ctx.beginPath(); ctx.arc(W / 2, H / 2, diag * 0.55 * easeOut(sk), 0, Math.PI * 2); ctx.stroke();
+      }
+      moveSpecks(now, easeOut);
+      drawSpecks(now, (p) => 1.7 + (p.s - 1.7) * p.k, (p) => 0.95 + (p.a - 0.95) * p.k);
+      if (e >= BOOM * 1.2) {
+        stars = specks.map((p) => ({ x: p.x, y: p.y, s: p.s, a: p.a, tw: p.tw, v: p.v }));
+        specks = [];
         setPhase('play'); nextAt = now + 600;
         if (on) { score.hidden = false; paint(); }
       }

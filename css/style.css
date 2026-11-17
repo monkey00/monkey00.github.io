@@ -53,10 +53,6 @@ a { color: inherit; }
   position: absolute; left: 0; right: 0; top: 50%; margin: 0; transform: translateY(-50%); text-align: center; pointer-events: none;
   font-size: clamp(18px, 1.7vw, 24px); letter-spacing: .01em; color: var(--ink); opacity: 0;
 }
-.game-count {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; opacity: 0;
-  font-family: var(--serif); font-size: 46vh; line-height: 1; color: #09090B; will-change: transform;
-}
 #intro, #verdict, #fan { transition: opacity .6s var(--ease); }
 .game-on #intro, .game-on #verdict, .game-on #fan { opacity: 0; pointer-events: none; }
 .game-on .card { pointer-events: none; }
