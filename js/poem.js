@@ -4,15 +4,27 @@
 // chosen from the words in the line (see PICTURES in js/scenes/geese.js), so the list can be
 // a few lines or the whole poem.
 //
-// To show the whole poem: replace the list below with all of its lines, one per string,
-// and set CREDIT to the wording your permission from the rights holder asks for.
+// CREDIT is the acknowledgment shown under the poem.
 
 export const LINES = [
   'You do not have to be good.',
-  'the soft animal of your body',
+  'You do not have to walk on your knees',
+  'for a hundred miles through the desert repenting.',
+  'You only have to let the soft animal of your body',
+  'love what it loves.',
+  'Tell me about despair, yours, and I will tell you mine.',
   'Meanwhile the world goes on.',
-  'the wild geese, high in the clean blue air',
-  'the family of things.',
+  'Meanwhile the sun and the clear pebbles of the rain',
+  'are moving across the landscapes,',
+  'over the prairies and the deep trees,',
+  'the mountains and the rivers.',
+  'Meanwhile the wild geese, high in the clean blue air,',
+  'are heading home again.',
+  'Whoever you are, no matter how lonely,',
+  'the world offers itself to your imagination,',
+  'calls to you like the wild geese, harsh and exciting -',
+  'over and over announcing your place',
+  'in the family of things.',
 ];
 
-export const CREDIT = 'Lines from “Wild Geese” by Mary Oliver / Dream Work, 1986';
+export const CREDIT = '“Wild Geese” by Mary Oliver / Dream Work, 1986 / © NW Orchard LLC';
